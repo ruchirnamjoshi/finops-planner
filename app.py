@@ -727,8 +727,16 @@ if 'planning_result' in st.session_state:
                         strategic_recommendations = comparison_result.strategic_recommendations
                         implementation_roadmap = comparison_result.implementation_roadmap
                     
-                    st.success(f"🏆 **Recommended Strategy: {winner_id.upper()}**")
-                    st.info(f"**Reason:** {winner_reason}")
+                    # Find the highest scoring blueprint
+                    highest_scoring = max(
+                        comparison_matrix.items(),
+                        key=lambda x: x[1].get('overall_score', 0)
+                    )
+                    winner_id = highest_scoring[0]
+                    winner_score = highest_scoring[1].get('overall_score', 0)
+                    
+                    st.success(f"🏆 **Recommended Strategy: {winner_id.upper()}** (Score: {winner_score}/100)")
+                    st.info(f"**Reason:** Highest overall score based on cost, performance, risk, scalability, and implementation factors")
                     
                     # Display comparison matrix
                     st.markdown("#### 📊 Strategy Comparison Matrix")
@@ -750,15 +758,24 @@ if 'planning_result' in st.session_state:
                     df_comparison = pd.DataFrame(comparison_data)
                     st.dataframe(df_comparison, use_container_width=True)
                     
-                    # Display ranking
-                    st.markdown("#### 🏅 Strategy Ranking")
-                    for i, blueprint_id in enumerate(ranking, 1):
+                    # Display ranking based on overall scores
+                    st.markdown("#### 🏅 Strategy Ranking (Based on Overall Scores)")
+                    
+                    # Sort blueprints by overall score (highest first)
+                    sorted_blueprints = sorted(
+                        comparison_matrix.items(),
+                        key=lambda x: x[1].get('overall_score', 0),
+                        reverse=True
+                    )
+                    
+                    for i, (blueprint_id, comparison) in enumerate(sorted_blueprints, 1):
+                        overall_score = comparison.get('overall_score', 0)
                         if i == 1:
-                            st.success(f"🥇 **{i}. {blueprint_id.upper()}** - Best Overall Strategy")
+                            st.success(f"🥇 **{i}. {blueprint_id.upper()}** - Best Overall Strategy (Score: {overall_score}/100)")
                         elif i == 2:
-                            st.info(f"🥈 **{i}. {blueprint_id.upper()}** - Strong Alternative")
+                            st.info(f"🥈 **{i}. {blueprint_id.upper()}** - Strong Alternative (Score: {overall_score}/100)")
                         else:
-                            st.warning(f"🥉 **{i}. {blueprint_id.upper()}** - Consider for specific use cases")
+                            st.warning(f"🥉 **{i}. {blueprint_id.upper()}** - Consider for specific use cases (Score: {overall_score}/100)")
                     
                     # Display detailed analysis
                     col1, col2 = st.columns(2)
@@ -844,7 +861,8 @@ if 'planning_result' in st.session_state:
                         historical_data=None,  # Will generate synthetic data
                         forecast_data=None,    # Will generate synthetic data
                         estimate=first_estimate,
-                        spec=result['spec_obj']  # Use the actual ProjectSpec object
+                        spec=result['spec_obj'],  # Use the actual ProjectSpec object
+                        forecast_months=forecast_months  # Pass forecast period directly
                     )
                     
                     # Display the visualization

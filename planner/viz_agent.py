@@ -146,7 +146,8 @@ Focus on cost analysis, resource utilization, and optimization opportunities."""
                                        historical_data: Any,
                                        forecast_data: Any,
                                        estimate: Any,
-                                       spec: Any) -> Dict[str, Any]:
+                                       spec: Any,
+                                       forecast_months: int = 6) -> Dict[str, Any]:
         """
         Generate LLM-powered cost visualization with lazy imports.
         """
@@ -163,16 +164,19 @@ Focus on cost analysis, resource utilization, and optimization opportunities."""
             
             # Generate LLM-powered chart data
             try:
-                llm_chart_data = self._generate_llm_chart_data(estimate, spec, monthly_cost)
+                llm_chart_data = self._generate_llm_chart_data(estimate, spec, monthly_cost, forecast_months)
                 print("✅ LLM-powered chart data generated successfully")
                 
                 # Create charts using LLM-generated data
+                # Get forecast period from the chart data or default to 6
+                forecast_months = len(llm_chart_data.get('monthly_costs', [])) or 6
+                
                 if spec.workload.train_gpus > 0:  # ML Training project
-                    fig = self._create_ml_training_charts(go, make_subplots, spec_name, llm_chart_data)
+                    fig = self._create_ml_training_charts(go, make_subplots, spec_name, llm_chart_data, forecast_months)
                 elif spec.workload.inference_qps > 500:  # High-traffic workload
-                    fig = self._create_high_traffic_charts(go, make_subplots, spec_name, llm_chart_data)
+                    fig = self._create_high_traffic_charts(go, make_subplots, spec_name, llm_chart_data, forecast_months)
                 else:  # General compute workload
-                    fig = self._create_general_compute_charts(go, make_subplots, spec_name, llm_chart_data)
+                    fig = self._create_general_compute_charts(go, make_subplots, spec_name, llm_chart_data, forecast_months)
                 
                 return {
                     "figure": fig,
@@ -798,8 +802,23 @@ IMPORTANT:
             return f"{risk_count} total risks identified, {critical_risks} critical risks"
         except Exception:
             return "Risk information not available"
+    
+    def _generate_month_labels(self, forecast_months: int) -> List[str]:
+        """Generate month labels based on forecast period."""
+        import calendar
+        from datetime import datetime, timedelta
+        
+        # Start from current month
+        current_date = datetime.now()
+        month_labels = []
+        
+        for i in range(forecast_months):
+            month_date = current_date + timedelta(days=32*i)  # Approximate month increment
+            month_labels.append(month_date.strftime('%b'))
+        
+        return month_labels
 
-    def _generate_llm_chart_data(self, estimate: Any, spec: Any, monthly_cost: float) -> Dict[str, Any]:
+    def _generate_llm_chart_data(self, estimate: Any, spec: Any, monthly_cost: float, forecast_months: int = 6) -> Dict[str, Any]:
         """Generate LLM-powered chart data for visualizations."""
         try:
             client = get_openai_client()
@@ -818,22 +837,24 @@ IMPORTANT:
                 CRITICAL: Return ONLY valid JSON with the exact structure specified.
                 - No explanations, no markdown, no extra text
                 - All data should be realistic based on the project characteristics
-                - Costs should follow logical patterns based on the monthly cost provided"""),
+                - Costs should follow logical patterns based on the monthly cost provided
+                - Generate exactly {forecast_months} data points for each array"""),
                 ("human", """Generate chart data for cost visualization:
 
 PROJECT: {spec_name}
 MONTHLY COST: ${monthly_cost:,.2f}
 WORKLOAD TYPE: {workload_type}
+FORECAST PERIOD: {forecast_months} months
 
-Generate realistic data for a 6-month period (Jan-Jun) in this exact JSON format:
+Generate realistic data for exactly {forecast_months} months in this exact JSON format:
 {{
-    "monthly_costs": [<month1_cost>, <month2_cost>, <month3_cost>, <month4_cost>, <month5_cost>, <month6_cost>],
-    "gpu_utilization": [<month1_util>, <month2_util>, <month3_util>, <month4_util>, <month5_util>, <month6_util>],
-    "storage_costs": [<month1_storage>, <month2_storage>, <month3_storage>, <month4_storage>, <month5_storage>, <month6_storage>],
-    "training_costs": [<month1_training>, <month2_training>, <month3_training>, <month4_training>, <month5_training>, <month6_training>],
-    "inference_costs": [<month1_inference>, <month2_inference>, <month3_inference>, <month4_inference>, <month5_inference>, <month6_inference>],
-    "traffic_qps": [<month1_qps>, <month2_qps>, <month3_qps>, <month4_qps>, <month5_qps>, <month6_qps>],
-    "service_costs": [<month1_service>, <month2_service>, <month3_service>, <month4_service>, <month5_service>, <month6_service>],
+    "monthly_costs": [<month1_cost>, <month2_cost>, ... <month{forecast_months}_cost>],
+    "gpu_utilization": [<month1_util>, <month2_util>, ... <month{forecast_months}_util>],
+    "storage_costs": [<month1_storage>, <month2_storage>, ... <month{forecast_months}_storage>],
+    "training_costs": [<month1_training>, <month2_training>, ... <month{forecast_months}_training>],
+    "inference_costs": [<month1_inference>, <month2_inference>, ... <month{forecast_months}_inference>],
+    "traffic_qps": [<month1_qps>, <month2_qps>, ... <month{forecast_months}_qps>],
+    "service_costs": [<month1_service>, <month2_service>, ... <month{forecast_months}_service>],
     "recommendations": [
         "Specific recommendation 1 based on workload type",
         "Specific recommendation 2 based on cost patterns",
@@ -842,12 +863,13 @@ Generate realistic data for a 6-month period (Jan-Jun) in this exact JSON format
 }}
 
 REQUIREMENTS:
-- Monthly costs should start near {monthly_cost} and show realistic growth/fluctuation
+- Generate exactly {forecast_months} data points for each array
+- Monthly costs should start near {monthly_cost} and show realistic growth/fluctuation over {forecast_months} months
 - GPU utilization should be between 70-95% for ML workloads, 60-85% for others
 - Storage costs should be 15-25% of monthly cost
 - Training costs should be 60-80% of monthly cost for ML workloads
 - Inference costs should be 10-20% of monthly cost for ML workloads
-- Traffic QPS should show realistic scaling patterns
+- Traffic QPS should show realistic scaling patterns over {forecast_months} months
 - All values should be realistic and project-specific
 
 Return ONLY the JSON object, nothing else.""")
@@ -860,7 +882,8 @@ Return ONLY the JSON object, nothing else.""")
             result = chain.invoke({
                 "spec_name": spec_name,
                 "monthly_cost": monthly_cost,
-                "workload_type": workload_type
+                "workload_type": workload_type,
+                "forecast_months": forecast_months
             })
             
             # Parse the JSON response
@@ -940,9 +963,10 @@ Return ONLY the JSON object, nothing else.""")
             print(f"Code execution failed: {e}")
             return None
 
-    def _create_ml_training_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any]) -> Any:
+    def _create_ml_training_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any], forecast_months: int = 6) -> Any:
         """Create ML training charts using LLM-generated data."""
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+        # Generate dynamic month labels based on forecast period
+        months = self._generate_month_labels(forecast_months)
         
         fig = make_subplots(
             rows=2, cols=2,
@@ -998,9 +1022,10 @@ Return ONLY the JSON object, nothing else.""")
         
         return fig
 
-    def _create_high_traffic_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any]) -> Any:
+    def _create_high_traffic_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any], forecast_months: int = 6) -> Any:
         """Create high-traffic charts using LLM-generated data."""
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+        # Generate dynamic month labels based on forecast period
+        months = self._generate_month_labels(forecast_months)
         
         fig = make_subplots(
             rows=2, cols=2,
@@ -1051,9 +1076,10 @@ Return ONLY the JSON object, nothing else.""")
         
         return fig
 
-    def _create_general_compute_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any]) -> Any:
+    def _create_general_compute_charts(self, go, make_subplots, spec_name: str, chart_data: Dict[str, Any], forecast_months: int = 6) -> Any:
         """Create general compute charts using LLM-generated data."""
-        months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+        # Generate dynamic month labels based on forecast period
+        months = self._generate_month_labels(forecast_months)
         
         fig = make_subplots(
             rows=2, cols=2,
