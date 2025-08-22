@@ -5,25 +5,29 @@ pydantic>=2.7
 pyyaml>=6.0
 duckdb>=1.0
 
-# === LLM client ===
-openai>=1.33.0  # used by Planner (LLM) via responses API
+# === LLM & AI Framework ===
+openai>=1.33.0          # OpenAI API client
+langchain>=0.1.0        # LangChain framework for LLM interactions
+langchain-openai>=0.1.0 # LangChain OpenAI integration
+httpx>=0.25.0           # HTTP client for API calls
 
-# === UI & viz ===
+# === UI & Visualization ===
 streamlit>=1.28.0
 plotly>=5.22
 matplotlib>=3.8,<3.9
 Pillow>=10.0
 
-# === Time-series & stats ===
+# === Time-series & Statistics ===
 statsmodels>=0.14
 pmdarima>=2.0
 scikit-learn>=1.4
 
-# === Nice-to-have utilities ===
+# === Utilities ===
 python-dotenv>=1.0       # load env vars from .env locally
 tenacity>=8.2            # retries for API calls
+watchdog>=3.0            # file system monitoring for Streamlit
 
-# === Additional dependencies for intelligent agents ===
+# === Type Hints ===
 types-simpleNamespace    # for SimpleNamespace type hints
 
 # === Optional ML frameworks ===

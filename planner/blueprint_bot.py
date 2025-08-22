@@ -134,27 +134,7 @@ class IntelligentBlueprintAgent:
             
         except Exception as e:
             logger.error(f"Failed to generate dynamic blueprint: {e}")
-            return self._create_fallback_blueprint(spec, cloud, region)
-    
-    def _create_fallback_blueprint(self, spec: ProjectSpec, cloud: str, region: str) -> Blueprint:
-        """Create a fallback blueprint when LLM generation fails."""
-        return Blueprint(
-            id=f"{cloud}_{region}_fallback",
-            cloud=cloud,
-            region=region,
-            services=[
-                {
-                    "service": "compute",
-                    "sku": f"{cloud}_default_compute",
-                    "qty_expr": "1",
-                    "unit": "instance_month"
-                }
-            ],
-            assumptions={
-                "architecture_type": "fallback",
-                "notes": "Fallback blueprint created due to generation failure"
-            }
-        )
+            raise RuntimeError(f"LLM blueprint generation failed - no fallback available: {e}")
     
     def _validate_blueprint(self, bp: Blueprint, spec: ProjectSpec) -> Dict[str, Any]:
         """Validate blueprint against best practices and project requirements."""
@@ -165,9 +145,51 @@ class IntelligentBlueprintAgent:
             "recommendations": []
         }
         
-        # Check required services
+        # Check required services with proper mapping
         required_services = {"compute", "storage", "network"}
-        blueprint_services = {svc["service"] for svc in bp.services}
+        
+        # Map blueprint services to required service categories
+        service_mapping = {
+            # Compute services
+            "ec2": "compute", "vm": "compute", "compute": "compute", "gpu": "compute",
+            "instance": "compute", "node": "compute", "cluster": "compute",
+            "emr": "compute", "lambda": "compute", "fargate": "compute", "batch": "compute",
+            # Storage services  
+            "s3": "storage", "storage": "storage", "blob": "storage", "disk": "storage",
+            "volume": "storage", "backup": "storage", "archive": "storage",
+            "rds": "storage", "redshift": "storage", "dynamodb": "storage", "elasticache": "storage",
+            # Network services
+            "network": "network", "egress": "network", "ingress": "network",
+            "loadbalancer": "network", "cdn": "network", "vpc": "network",
+            "cloudfront": "network", "api_gateway": "network", "route53": "network"
+        }
+        
+        blueprint_services = set()
+        logger.info(f"Validating blueprint {bp.id} with services: {[svc['service'] for svc in bp.services]}")
+        
+        for svc in bp.services:
+            service_name = svc["service"].lower()
+            logger.info(f"Processing service: {service_name}")
+            
+            if service_name in service_mapping:
+                mapped_service = service_mapping[service_name]
+                blueprint_services.add(mapped_service)
+                logger.info(f"  -> Mapped {service_name} to {mapped_service}")
+            else:
+                # If not explicitly mapped, try to infer from the service name
+                if any(word in service_name for word in ["ec2", "vm", "gpu", "compute", "instance"]):
+                    blueprint_services.add("compute")
+                    logger.info(f"  -> Inferred {service_name} as compute")
+                elif any(word in service_name for word in ["s3", "storage", "blob", "disk", "volume"]):
+                    blueprint_services.add("storage")
+                    logger.info(f"  -> Inferred {service_name} as storage")
+                elif any(word in service_name for word in ["network", "egress", "ingress", "vpc", "cdn"]):
+                    blueprint_services.add("network")
+                    logger.info(f"  -> Inferred {service_name} as network")
+                else:
+                    logger.warning(f"  -> Could not map service: {service_name}")
+        
+        logger.info(f"Final blueprint services: {blueprint_services}")
         missing_services = required_services - blueprint_services
         
         if missing_services:
@@ -252,8 +274,8 @@ class IntelligentBlueprintAgent:
             # List of specific file paths
             file_paths = paths
         else:
-            # Default fallback
-            file_paths = glob.glob("blueprints/*.yaml")
+            # No fallback - require explicit paths
+            raise RuntimeError("No blueprint paths specified - explicit paths required")
         
         for f in file_paths:
             try:
@@ -269,10 +291,10 @@ class IntelligentBlueprintAgent:
                 logger.error(f"Unexpected error loading {f}: {e}")
         
         if not bps:
-            logger.warning("No valid blueprints found")
+            raise RuntimeError("No valid blueprints found - LLM blueprint generation required")
         
         return bps
-    
+
     def propose_blueprints(self, spec: ProjectSpec, blueprints: List[Blueprint]) -> List[Blueprint]:
         """Intelligently propose and rank blueprints based on project requirements."""
         if not blueprints:
@@ -285,12 +307,8 @@ class IntelligentBlueprintAgent:
                       and (not c.regions or b.region in c.regions)]
         
         if not candidates:
-            # Generate dynamic blueprints if no static ones match
-            logger.info("No matching blueprints found, generating dynamic ones...")
-            for cloud in (c.clouds or ["aws", "azure", "gcp"]):
-                for region in (c.regions or ["us-east-1", "eastus", "us-central1"]):
-                    dynamic_bp = self._generate_dynamic_blueprint(spec, cloud, region)
-                    candidates.append(dynamic_bp)
+            # No fallbacks - if no blueprints match, raise error
+            raise RuntimeError(f"No blueprints match constraints: clouds={c.clouds}, regions={c.regions}")
         
         # Validate and rank blueprints
         validated_candidates = []

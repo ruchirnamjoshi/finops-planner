@@ -143,13 +143,8 @@ def _llm_make_spec(brief: str, run_name: str) -> Dict[str, Any]:
             raise RuntimeError(f"Planner LLM did not return JSON:\n{raw}")
     except Exception as e:
         print(f"LLM spec generation failed: {e}")
-        # Return a basic fallback spec
-        return {
-            "name": run_name,
-            "workload": {"train_gpus": 0, "train_steps": 0, "inference_qps": 0.0, "latency_ms": 0, "batch": True},
-            "data": {"size_gb": 100.0, "growth_gb_per_month": 10.0, "hot_fraction": 0.3, "retention_days": 90, "egress_gb_per_month": 50.0},
-            "constraints": {"clouds": ["aws"], "regions": ["us-east-1"], "compliance": [], "region_lock": None, "managed_ok": True, "serverless_ok": True, "max_monthly_cost": None}
-        }
+        # No fallbacks - raise error
+        raise RuntimeError(f"LLM spec generation failed - no fallback available: {e}")
 
 # ---------- Orchestration ----------
 class PlannerService:
@@ -204,7 +199,13 @@ class PlannerService:
         try:
             if self._blueprints is None:
                 if self._blueprint_agent:
-                    self._blueprints = self._blueprint_agent.load_blueprints()
+                    # Load blueprints from explicit paths
+                    blueprint_paths = [
+                        "blueprints/aws_gpu_training.yaml",
+                        "blueprints/aws_web_app.yaml", 
+                        "blueprints/aws_data_warehouse.yaml"
+                    ]
+                    self._blueprints = self._blueprint_agent.load_blueprints(blueprint_paths)
             
             if self._sku is None:
                 import pandas as pd
@@ -260,10 +261,10 @@ class PlannerService:
             
             # Generate cost estimates using LLM agent
             estimates = []
-            if self._cost_agent and self._sku is not None:
+            if self._cost_agent:
                 for bp in bps:
                     try:
-                        est = self._cost_agent.price_blueprint(spec_obj, bp, self._sku)
+                        est = self._cost_agent.price_blueprint(spec_obj, bp)  # No sku_pricing needed
                         estimates.append(est)
                     except Exception as e:
                         # Handle both dict and object access

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from langchain_core.runnables import RunnablePassthrough
 
 # Load environment variables
@@ -87,31 +87,28 @@ class LangChainBaseAgent(ABC):
         
         return chain
     
-    def _invoke_chain_safely(self, 
-                            chain: Any, 
-                            inputs: Dict[str, Any],
-                            fallback: Any = None) -> Any:
+    def safe_invoke(self, chain: Any, inputs: Dict[str, Any], 
+                    fallback: Any = None) -> Any:
         """
-        Safely invoke a LangChain chain with error handling and fallback.
+        Safely invoke a LangChain chain with error handling and NO fallbacks.
         
         Args:
-            chain: The LangChain chain to invoke
-            inputs: Input data for the chain
-            fallback: Fallback value if chain fails
-        
+            chain: LangChain chain to invoke
+            inputs: Input dictionary for the chain
+            fallback: NOT USED - kept for compatibility but ignored
+            
         Returns:
-            Chain output or fallback value
+            Chain output or raises RuntimeError if chain fails
         """
         try:
             result = chain.invoke(inputs)
-            logger.info("✅ LangChain chain executed successfully")
+            logger.info("✅ LangChain chain invoked successfully")
             return result
+            
         except Exception as e:
-            logger.error(f"LangChain chain failed: {e}")
-            if fallback is not None:
-                logger.info("Using fallback value")
-                return fallback
-            raise
+            logger.error(f"❌ LangChain chain failed: {e}")
+            # No fallbacks - raise error
+            raise RuntimeError(f"LangChain chain invocation failed: {e}")
     
     @abstractmethod
     def process(self, *args, **kwargs) -> Any:

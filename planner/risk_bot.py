@@ -8,7 +8,7 @@ import logging
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 
 # Load environment variables from .env file
 try:
@@ -362,60 +362,60 @@ Focus on identifying risks that may not be obvious from basic analysis, includin
             
         except Exception as e:
             logger.error(f"LangChain risk analysis failed: {e}")
-            logger.info("Using fallback risk analysis")
-            return []
+            # No fallbacks - raise error
+            raise RuntimeError(f"LLM risk analysis failed - no fallback available: {e}")
     
     def assess_plan(self, spec: ProjectSpec, bp: Blueprint, est: Estimate,
-                    egress_share_threshold: float = 0.4,
+    egress_share_threshold: float = 0.4,
                     compute_share_threshold: float = 0.6) -> List[RiskFinding]:
         """Comprehensive risk assessment using multiple analysis methods."""
         findings = []
         
         # Basic heuristic analysis (legacy)
-        total = max(est.monthly_cost, 1e-9)
+    total = max(est.monthly_cost, 1e-9)
         
-        def share(pred):
-            s = sum(li.cost for li in est.bom if pred(li))
-            return s / total
+    def share(pred):
+        s = sum(li.cost for li in est.bom if pred(li))
+        return s / total
 
-        egress_share = share(lambda li: "egress" in li.sku.lower() or "egress" in li.service.lower())
-        compute_share = share(lambda li: any(k in (li.service.lower()+" "+li.sku.lower()) for k in ["compute","ec2","vm","gpu"]))
+    egress_share = share(lambda li: "egress" in li.sku.lower() or "egress" in li.service.lower())
+    compute_share = share(lambda li: any(k in (li.service.lower()+" "+li.sku.lower()) for k in ["compute","ec2","vm","gpu"]))
 
         # High egress share
-        if egress_share > egress_share_threshold:
-            findings.append(RiskFinding(
-                category="egress",
-                severity="high",
-                evidence=f"Egress is {round(egress_share*100)}% of monthly cost.",
-                fix="Co-locate compute with data, reduce cross-region traffic, or cache results.",
-            ))
+    if egress_share > egress_share_threshold:
+        findings.append(RiskFinding(
+            category="egress",
+            severity="high",
+            evidence=f"Egress is {round(egress_share*100)}% of monthly cost.",
+            fix="Co-locate compute with data, reduce cross-region traffic, or cache results.",
+        ))
 
         # Low compute share
-        if compute_share < (1 - egress_share_threshold) * 0.3:
-            findings.append(RiskFinding(
-                category="allocation_mismatch",
-                severity="medium",
-                evidence=f"Compute share is low at {round(compute_share*100)}%.",
-                fix="Check if storage tiering/egress are dominating. Revisit data placement and lifecycle.",
-            ))
+    if compute_share < (1 - egress_share_threshold) * 0.3:
+        findings.append(RiskFinding(
+            category="allocation_mismatch",
+            severity="medium",
+            evidence=f"Compute share is low at {round(compute_share*100)}%.",
+            fix="Check if storage tiering/egress are dominating. Revisit data placement and lifecycle.",
+        ))
 
         # Latency vs batch mismatch
-        if spec.workload.batch and spec.workload.latency_ms and spec.workload.latency_ms > 0:
-            findings.append(RiskFinding(
-                category="latency_mismatch",
-                severity="low",
-                evidence=f"Batch workload but latency target set to {spec.workload.latency_ms}ms.",
-                fix="If this is offline/batch, set latency to 0 to widen blueprint options.",
-            ))
+    if spec.workload.batch and spec.workload.latency_ms and spec.workload.latency_ms > 0:
+        findings.append(RiskFinding(
+            category="latency_mismatch",
+            severity="low",
+            evidence=f"Batch workload but latency target set to {spec.workload.latency_ms}ms.",
+            fix="If this is offline/batch, set latency to 0 to widen blueprint options.",
+        ))
 
         # Storage tier sanity check
-        if spec.data.hot_fraction < 0.1 and any("hot" in (li.sku.lower()+" "+li.service.lower()) for li in est.bom):
-            findings.append(RiskFinding(
-                category="storage_tier",
-                severity="low",
-                evidence=f"hot_fraction={spec.data.hot_fraction} but hot tier is provisioned.",
-                fix="Push most data to cool/nearline tiers; keep only active working set hot.",
-            ))
+    if spec.data.hot_fraction < 0.1 and any("hot" in (li.sku.lower()+" "+li.service.lower()) for li in est.bom):
+        findings.append(RiskFinding(
+            category="storage_tier",
+            severity="low",
+            evidence=f"hot_fraction={spec.data.hot_fraction} but hot tier is provisioned.",
+            fix="Push most data to cool/nearline tiers; keep only active working set hot.",
+        ))
 
         # Enhanced analysis methods
         findings.extend(self._analyze_cost_risks(spec, bp, est))

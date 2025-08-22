@@ -133,19 +133,16 @@ def _fit_lstm_forecaster(series: pd.Series, seasonal: bool = False) -> callable:
     Returns a callable f(h) -> np.ndarray of length h.
     """
     if not _TF_AVAILABLE:
-        warnings.warn("TensorFlow not available; falling back from LSTM.")
-        # Flat mean fallback; _fit_forecaster will layer additional fallbacks.
-        y = series.astype(float).values
-        level = float(np.mean(y)) if len(y) else 0.0
-        return lambda h: np.full(h, level, dtype=float)
+        warnings.warn("TensorFlow not available; LSTM forecasting not possible.")
+        # No fallbacks - raise error
+        raise RuntimeError("TensorFlow required for LSTM forecasting - no fallback available")
 
     y = series.astype(float).values
     n = len(y)
 
-    # Guards: if too short or flat, bail to mean
+    # Guards: if too short or flat, no fallback
     if n < 30 or np.allclose(np.var(y), 0.0, atol=1e-12):
-        level = float(np.mean(y)) if n else 0.0
-        return lambda h: np.full(h, level, dtype=float)
+        raise RuntimeError(f"Series too short ({n} points) or flat for LSTM forecasting")
 
     # Lookback: weekly window if seasonal and enough history, else 28 default
     lookback = 42 if (seasonal and n >= 84) else 28
@@ -155,8 +152,7 @@ def _fit_lstm_forecaster(series: pd.Series, seasonal: bool = False) -> callable:
     y_scaled, amin, amax = _scale_minmax(y)
     X, T = _make_supervised(y_scaled, lookback)
     if len(X) < 16:  # still too short after lookback
-        level = float(np.mean(y)) if n else 0.0
-        return lambda h: np.full(h, level, dtype=float)
+        raise RuntimeError(f"Insufficient data after lookback ({len(X)} samples) for LSTM training")
 
     # Train/val split
     split = int(0.8 * len(X))

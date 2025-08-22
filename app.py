@@ -90,12 +90,41 @@ def get_planner_service():
 
 # Initialize visualization agent
 def get_viz_agent():
-    try:
-        from planner.viz_agent import IntelligentVisualizationAgent
-        return IntelligentVisualizationAgent()
-    except Exception as e:
-        st.error(f"Failed to initialize VisualizationAgent: {e}")
-        return None
+    """Get or create the visualization agent."""
+    if 'viz_agent' not in st.session_state:
+        try:
+            from planner.viz_agent import IntelligentVisualizationAgent
+            st.session_state.viz_agent = IntelligentVisualizationAgent()
+        except Exception as e:
+            st.error(f"Failed to initialize VisualizationAgent: {e}")
+            return None
+    return st.session_state.viz_agent
+
+# Import the insights agent
+from planner.insights_agent import IntelligentInsightsAgent
+
+# Import the strategy comparison agent
+from planner.strategy_comparison_agent import IntelligentStrategyComparisonAgent
+
+def get_insights_agent():
+    """Get or create the insights agent."""
+    if 'insights_agent' not in st.session_state:
+        try:
+            st.session_state.insights_agent = IntelligentInsightsAgent()
+        except Exception as e:
+            st.error(f"Failed to initialize insights agent: {e}")
+            return None
+    return st.session_state.insights_agent
+
+def get_strategy_comparison_agent():
+    """Get or create the strategy comparison agent."""
+    if 'strategy_comparison_agent' not in st.session_state:
+        try:
+            st.session_state.strategy_comparison_agent = IntelligentStrategyComparisonAgent()
+        except Exception as e:
+            st.error(f"Failed to initialize strategy comparison agent: {e}")
+            return None
+    return st.session_state.strategy_comparison_agent
 
 def create_project_spec_from_brief(brief: str) -> 'ProjectSpec':
     """Intelligently create a ProjectSpec object from a natural language brief."""
@@ -223,11 +252,12 @@ with st.sidebar:
     include_forecasting = st.checkbox("Include Cost Forecasting", value=True)
     
     st.markdown("### 🔧 Advanced Settings")
-    forecast_months = st.slider("Forecast Period (months)", 3, 12, 6)
+    forecast_months = st.slider("Forecast Period (months)", 3, 12, 6, key="forecast_months")
     optimization_aggressiveness = st.selectbox(
         "Optimization Strategy",
         ["Conservative", "Balanced", "Aggressive"],
-        index=1
+        index=1,
+        key="optimization_aggressiveness"
     )
     
     st.markdown("---")
@@ -240,12 +270,11 @@ with st.sidebar:
             st.metric("Risk Score", f"{result.get('risk_score', 0):.1f}/10")
 
 # Main content area
-col1, col2 = st.columns([2, 1])
+st.markdown('<h2 class="sub-header">🎯 Generate Intelligent Plan</h2>', unsafe_allow_html=True)
 
+# Plan generation and management
+col1, col2 = st.columns([3, 1])
 with col1:
-    st.markdown('<h2 class="sub-header">🎯 Generate Intelligent Plan</h2>', unsafe_allow_html=True)
-    
-    # Plan generation
     if st.button("🎯 Generate Intelligent Plan", type="primary", use_container_width=True):
         if project_brief.strip():
             # Clear any previous results to ensure fresh planning
@@ -266,7 +295,8 @@ with col1:
                         spec = create_project_spec_from_brief(project_brief)
                         
                         # Use the intelligent agents to generate a real plan
-                        result = planner.plan(spec)
+                        # Pass the original project_brief string, not the spec object
+                        result = planner.plan(project_brief)
                         
                         if result.get("error"):
                             st.error(f"❌ Planning failed: {result['error']}")
@@ -285,13 +315,23 @@ with col1:
             st.warning("⚠️ Please enter a project description")
 
 with col2:
-    st.markdown('<h3 class="sub-header">📋 Project Details</h3>', unsafe_allow_html=True)
-    
-    if 'planning_result' in st.session_state:
-        result = st.session_state.planning_result
-        if not result.get("error"):
-            spec = result.get("spec", {})
-            
+    if st.button("🗑️ Clear Results", type="secondary", use_container_width=True):
+        if 'planning_result' in st.session_state:
+            del st.session_state.planning_result
+        st.rerun()
+
+# Project Details Section
+st.markdown('<h3 class="sub-header">📋 Project Details</h3>', unsafe_allow_html=True)
+
+if 'planning_result' in st.session_state:
+    result = st.session_state.planning_result
+    if not result.get("error"):
+        spec = result.get("spec", {})
+        
+        # Use columns for better layout of project details
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
             st.markdown("**Project Name:**")
             st.info(spec.get("name", "N/A"))
             
@@ -303,456 +343,691 @@ with col2:
                 st.info(f"Inference: {workload.get('inference_qps')} QPS")
             else:
                 st.info("General Compute")
-            
+        
+        with col2:
             st.markdown("**Data Size:**")
             data = spec.get("data", {})
             st.info(f"{data.get('size_gb', 0):.1f} GB")
             
+            st.markdown("**Data Growth:**")
+            st.info(f"{data.get('growth_gb_per_month', 0):.1f} GB/month")
+        
+        with col3:
             st.markdown("**Cloud Provider:**")
             constraints = spec.get("constraints", {})
             clouds = constraints.get("clouds", [])
             st.info(", ".join(clouds) if clouds else "Not specified")
-
-# Display results
-if 'planning_result' in st.session_state:
-    result = st.session_state.planning_result
-    
-    if result.get("error"):
-        st.error(f"❌ Planning failed: {result['error']}")
-    else:
-        # Success! Display the intelligent plan
-        st.markdown("---")
-        
-        # Add clear results button and timestamp
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.markdown('<h2 class="sub-header">🎉 Intelligent Plan Generated!</h2>', unsafe_allow_html=True)
-        with col2:
-            if st.button("🗑️ Clear Results", type="secondary"):
-                del st.session_state.planning_result
-                st.rerun()
-        
-        # Show when the plan was generated
-        st.info(f"📅 Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        # Key metrics in cards
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>🎯 Project Status</h3>
-                <h2>✅ Active</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>🏗️ Blueprints</h3>
-                <h2>{len(result.get('candidates', []))}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>⚡ Optimizations</h3>
-                <h2>{len(result.get('optimized', []))}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+            
+            st.markdown("**Regions:**")
+            regions = constraints.get("regions", [])
+            st.info(", ".join(regions) if regions else "Not specified")
         
         with col4:
-            st.markdown(f"""
-            <div class="metric-card">
-                <h3>⚠️ Risk Areas</h3>
-                <h2>{len(result.get('risks', {}))}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Blueprint Analysis
-        st.markdown('<h3 class="sub-header">🏗️ Architecture Blueprints</h3>', unsafe_allow_html=True)
-        
-        if result.get('candidates') and len(result['candidates']) > 0:
-            # Display all candidate blueprints
-            for i, (blueprint, estimate) in enumerate(result['candidates']):
-                if blueprint and estimate:
-                    st.markdown(f"**Blueprint {i+1}:**")
+            st.markdown("**Latency Requirements:**")
+            workload = spec.get("workload", {})
+            latency = workload.get("latency_ms", 100)
+            if latency < 50:
+                st.success(f"Ultra-low: {latency}ms")
+            elif latency < 100:
+                st.info(f"Low: {latency}ms")
+            else:
+                st.warning(f"Standard: {latency}ms")
+            
+            st.markdown("**Batch Processing:**")
+            batch = workload.get("batch", False)
+            st.info("✅ Enabled" if batch else "❌ Disabled")
+
+# Display Results
+        if 'planning_result' in st.session_state:
+            result = st.session_state.planning_result
+            
+            if result.get("error"):
+                st.error(f"❌ Planning failed: {result['error']}")
+            else:
+                # Success! Display the intelligent plan
+                st.markdown("---")
+                
+                # Add clear results button and timestamp
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown('<h2 class="sub-header">🎉 Intelligent Plan Generated!</h2>', unsafe_allow_html=True)
+                with col2:
+                    if st.button("🗑️ Clear Results", type="secondary"):
+                        del st.session_state.planning_result
+                        st.rerun()
+                
+                # Show when the plan was generated
+                st.info(f"📅 Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                # Key metrics in cards
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🎯 Project Status</h3>
+                        <h2>✅ Active</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>🏗️ Blueprints</h3>
+                        <h2>{len(result.get('candidates', []))}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>⚡ Optimizations</h3>
+                        <h2>{len(result.get('optimized', []))}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col4:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h3>⚠️ Risk Areas</h3>
+                        <h2>{len(result.get('risks', {}))}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Display each blueprint with its own detailed analysis
+                if result.get('candidates') and len(result['candidates']) > 0:
+                    st.markdown('<h2 class="sub-header">🏗️ Architecture Blueprint Analysis</h2>', unsafe_allow_html=True)
                     
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Handle both dict and object access
-                        bp_id = blueprint.get('id', 'N/A') if hasattr(blueprint, 'get') else getattr(blueprint, 'id', 'N/A')
-                        bp_cloud = blueprint.get('cloud', 'N/A') if hasattr(blueprint, 'get') else getattr(blueprint, 'cloud', 'N/A')
-                        bp_region = blueprint.get('region', 'N/A') if hasattr(blueprint, 'get') else getattr(blueprint, 'region', 'N/A')
-                        
-                        st.info(f"**ID:** {bp_id}")
-                        st.info(f"**Cloud:** {bp_cloud}")
-                        st.info(f"**Region:** {bp_region}")
-                    
-                    with col2:
-                        # Handle both dict and object access
-                        if hasattr(estimate, 'monthly_cost'):
-                            monthly_cost = estimate.monthly_cost
-                        elif hasattr(estimate, 'get'):
-                            monthly_cost = estimate.get('monthly_cost', 'N/A')
-                        else:
-                            monthly_cost = 'N/A'
+                    # Display each blueprint with its own detailed analysis
+                    for i, (blueprint, estimate) in enumerate(result['candidates']):
+                        if estimate is None:
+                            continue
                             
-                        st.info(f"**Monthly Cost:** ${monthly_cost:,.2f}" if isinstance(monthly_cost, (int, float)) else f"**Monthly Cost:** {monthly_cost}")
-                    
-                    st.markdown("---")
+                        # Create a unique section for each blueprint with side-by-side layout
+                        st.markdown(f"### 🏗️ Blueprint {i+1}: {blueprint.id.upper()}")
+                        
+                        # Create two main columns: Left for blueprint details, Right for cost breakdown
+                        col_left, col_right = st.columns([1, 1])
+                        
+                        with col_left:
+                            st.markdown("#### 📋 Blueprint Details")
+                            # Blueprint details in sub-columns
+                            sub_col1, sub_col2 = st.columns(2)
+                            with sub_col1:
+                                st.info(f"**Cloud:** {blueprint.cloud.upper()}")
+                                st.info(f"**Region:** {blueprint.region}")
+                                st.info(f"**Monthly Cost:** ${estimate.monthly_cost:,.2f}")
+                            with sub_col2:
+                                st.info(f"**Services:** {len(blueprint.services) if hasattr(blueprint, 'services') else 0}")
+                                # Show workload-specific insights
+                                if result.get('spec_obj'):
+                                    spec = result['spec_obj']
+                                    if spec.workload.train_gpus > 0:
+                                        st.success(f"**🎯 ML Training:** {spec.workload.train_gpus} GPUs")
+                                    elif spec.workload.inference_qps > 500:
+                                        st.success(f"**🌐 High Traffic:** {spec.workload.inference_qps:.0f} QPS")
+                                    elif spec.data.size_gb > 5000:
+                                        st.success(f"**💾 Data Heavy:** {spec.data.size_gb:,.0f} GB")
+                                    else:
+                                        st.success(f"**⚡ General Compute:** {spec.workload.inference_qps:.0f} QPS")
+                            
+                            # Show blueprint services
+                            if hasattr(blueprint, 'services') and blueprint.services:
+                                st.markdown("**🔧 Services:**")
+                                for service in blueprint.services:
+                                    service_name = service.get('service', 'unknown') if hasattr(service, 'get') else getattr(service, 'service', 'unknown')
+                                    service_sku = service.get('sku', 'N/A') if hasattr(service, 'get') else getattr(service, 'sku', 'N/A')
+                                    service_qty = service.get('qty_expr', '1') if hasattr(service, 'get') else getattr(service, 'qty_expr', '1')
+                                    st.info(f"• {service_name}: {service_sku} x {service_qty}")
+                            
+                            # Show data insights
+                            if result.get('spec_obj'):
+                                spec = result['spec_obj']
+                                st.info(f"**📊 Data:** {spec.data.size_gb:,.0f} GB")
+                                st.info(f"**📈 Growth:** {spec.data.growth_gb_per_month:,.0f} GB/month")
+                        
+                        with col_right:
+                            st.markdown("#### 💰 Cost Breakdown & Visualization")
+                            
+                            # Show cost breakdown for this specific blueprint
+                            if hasattr(estimate, 'bom') and estimate.bom:
+                                st.markdown("**📊 Cost Summary:**")
+                                total_cost = sum(item.cost for item in estimate.bom)
+                                for item in estimate.bom:
+                                    percentage = (item.cost / total_cost * 100) if total_cost > 0 else 0
+                                    st.info(f"• {item.service}: ${item.cost:,.2f} ({percentage:.1f}%)")
+                                
+                                # Cost visualization below the breakdown - Side by side for better visibility
+                                bom_data = []
+                                for item in estimate.bom:
+                                    bom_data.append({
+                                        'Service': item.service,
+                                        'Cost': item.cost
+                                    })
+                                
+                                df_bom = pd.DataFrame(bom_data)
+                                
+                                # Single pie chart for cost distribution (full width)
+                                fig_pie = px.pie(
+                                    df_bom, 
+                                    values='Cost', 
+                                    names='Service',
+                                    title=f"Cost Distribution - {blueprint.id.upper()}",
+                                    color_discrete_sequence=px.colors.qualitative.Set3
+                                )
+                                fig_pie.update_layout(height=400)
+                                st.plotly_chart(fig_pie, use_container_width=True)
+                            else:
+                                st.info("Cost breakdown details not available")
+                        
+                        st.markdown("---")
+                        
+                        # Individual AI Insights for this blueprint
+                        st.markdown(f"#### 🤖 AI-Powered Analysis for {blueprint.id.upper()}")
+                
+                        # Get optimization recommendations for this specific blueprint
+                        optimization_recs = []
+                        if result.get('optimized') and len(result['optimized']) > i and result['optimized'][i]:
+                            opt_result = result['optimized'][i]
+                            if hasattr(opt_result, 'metadata') and opt_result.metadata:
+                                if 'optimization_recommendations' in opt_result.metadata:
+                                    optimization_recs = opt_result.metadata['optimization_recommendations']
+                        
+                        # Get cost patterns for this specific blueprint
+                        cost_patterns = {}
+                        if result.get('optimized') and len(result['optimized']) > i and result['optimized'][i]:
+                            opt_result = result['optimized'][i]
+                            if hasattr(opt_result, 'metadata') and opt_result.metadata:
+                                if 'cost_patterns' in opt_result.metadata:
+                                    cost_patterns = opt_result.metadata['cost_patterns']
+                        
+                        # Generate comprehensive insights for this specific blueprint
+                        insights_agent = get_insights_agent()
+                        if insights_agent and result.get('spec_obj'):
+                            try:
+                                comprehensive_insights = insights_agent.generate_comprehensive_insights(
+                                    spec=result['spec_obj'],
+                                    estimate=estimate,
+                                    cost_patterns=cost_patterns,
+                                    optimization_recommendations=optimization_recs
+                                )
+                                
+                                # Display blueprint-specific insights
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.markdown("**💰 Cost Analysis:**")
+                                    for insight in comprehensive_insights.get('cost_analysis', []):
+                                        st.info(f"• {insight}")
+                                    
+                                    st.markdown("**🔧 Resource Optimization:**")
+                                    for rec in comprehensive_insights.get('resource_optimization', []):
+                                        st.success(f"• {rec}")
+                                
+                                with col2:
+                                    st.markdown("**💡 Cost Savings Opportunities:**")
+                                    for opportunity in comprehensive_insights.get('cost_savings', []):
+                                        st.warning(f"• {opportunity}")
+                                    
+                                    st.markdown("**⚠️ Risk Mitigation:**")
+                                    for strategy in comprehensive_insights.get('risk_mitigation', []):
+                                        st.error(f"• {strategy}")
+                                
+                                # Performance and strategic insights
+                                st.markdown("**📊 Performance Insights:**")
+                                for insight in comprehensive_insights.get('performance_insights', []):
+                                    st.info(f"• {insight}")
+                                
+                                st.markdown("**🎯 Strategic Recommendations:**")
+                                for rec in comprehensive_insights.get('strategic_recommendations', []):
+                                    st.success(f"• {rec}")
+                                
+                            except Exception as e:
+                                st.error(f"❌ AI insights generation failed for {blueprint.id}: {e}")
+                                st.error("The system requires LLM connectivity to provide intelligent analysis.")
+                        
+                        # Display cost patterns for this specific blueprint
+                        if cost_patterns:
+                            st.markdown(f"#### 📊 Cost Pattern Analysis for {blueprint.id.upper()}")
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.metric("💰 Compute Ratio", f"{cost_patterns.get('compute_ratio', 0):.1f}%")
+                                st.metric("💾 Storage Ratio", f"{cost_patterns.get('storage_ratio', 0):.1f}%")
+                                st.metric("🌐 Network Ratio", f"{cost_patterns.get('network_ratio', 0):.1f}%")
+                            
+                            with col2:
+                                # Dominant cost driver
+                                dominant = cost_patterns.get('dominant_cost_driver', 'unknown')
+                                if dominant == 'compute':
+                                    st.warning(f"🔥 **Dominant Cost Driver**: Compute ({cost_patterns.get('compute_ratio', 0):.1f}%)")
+                                elif dominant == 'storage':
+                                    st.warning(f"💾 **Dominant Cost Driver**: Storage ({cost_patterns.get('storage_ratio', 0):.1f}%)")
+                                elif dominant == 'network':
+                                    st.warning(f"🌐 **Dominant Cost Driver**: Network ({cost_patterns.get('network_ratio', 0):.1f}%)")
+                                else:
+                                    st.info(f"📊 **Dominant Cost Driver**: {dominant}")
+                                
+                                # Cost efficiency score
+                                efficiency = cost_patterns.get('cost_efficiency_score', 0)
+                                if efficiency > 80:
+                                    st.success(f"✅ **Cost Efficiency**: Excellent ({efficiency:.0f}/100)")
+                                elif efficiency > 60:
+                                    st.success(f"✅ **Cost Efficiency**: Good ({efficiency:.0f}/100)")
+                                elif efficiency > 40:
+                                    st.warning(f"⚠️ **Cost Efficiency**: Fair ({efficiency:.0f}/100)")
+                                else:
+                                    st.error(f"❌ **Cost Efficiency**: Poor ({efficiency:.0f}/100)")
+                            
+                            # Optimization priority
+                            priority = cost_patterns.get('optimization_priority', 'overall')
+                            st.info(f"🎯 **Optimization Priority**: Focus on {priority.replace('|', ', ')}")
+                            
+                            # High cost indicators
+                            if cost_patterns.get('high_compute', False):
+                                st.warning("⚠️ **High Compute Costs**: Consider spot instances, reserved instances, or auto-scaling")
+                            if cost_patterns.get('high_storage', False):
+                                st.warning("⚠️ **High Storage Costs**: Implement lifecycle policies, compression, or tiered storage")
+                            if cost_patterns.get('high_network', False):
+                                st.warning("⚠️ **High Network Costs**: Optimize data transfer, use CDN, or co-locate resources")
+                        
+                        # Display optimization recommendations for this specific blueprint
+                        if optimization_recs:
+                            st.markdown(f"#### 🚀 Optimization Recommendations for {blueprint.id.upper()}")
+                            
+                            for j, rec in enumerate(optimization_recs, 1):
+                                if isinstance(rec, dict):
+                                    st.success(f"**{j}. {rec.get('strategy', 'N/A')}**")
+                                    st.success(f"   Description: {rec.get('description', 'N/A')}")
+                                    st.success(f"   Savings: {rec.get('savings_potential', 'N/A')}")
+                                    st.success(f"   Effort: {rec.get('implementation_effort', 'N/A')}")
+                                else:
+                                    st.success(f"**{j}. {rec}**")
+                        
+                        # Display risk assessment for this specific blueprint
+                        if result.get('risks') and blueprint.id in result['risks']:
+                            risks = result['risks'][blueprint.id]
+                            if risks:
+                                st.markdown(f"#### ⚠️ Risk Assessment for {blueprint.id.upper()}")
+                                
+                                if isinstance(risks, list):
+                                    for k, risk in enumerate(risks, 1):
+                                        if hasattr(risk, 'category'):
+                                            st.warning(f"**Risk {k}:**")
+                                            st.warning(f"• **Category**: {risk.category}")
+                                            st.warning(f"• **Severity**: {risk.severity}")
+                                            st.warning(f"• **Evidence**: {risk.evidence}")
+                                            st.warning(f"• **Fix**: {risk.fix}")
+                                        else:
+                                            st.warning(f"• {risk}")
+                                else:
+                                    if hasattr(risks, 'category'):
+                                        st.warning(f"**Risk:**")
+                                        st.warning(f"• **Category**: {risks.category}")
+                                        st.warning(f"• **Severity**: {risks.severity}")
+                                        st.warning(f"• **Evidence**: {risks.evidence}")
+                                        st.warning(f"• **Fix**: {risks.fix}")
+                                    else:
+                                        st.warning(f"• {risks}")
+                        
+                        # Compact spacing between blueprints
+                        st.markdown("---")
         else:
             st.info("No blueprints generated. This might be due to missing API keys or configuration.")
         
-        # Cost Breakdown
-        st.markdown('<h3 class="sub-header">💰 Cost Breakdown</h3>', unsafe_allow_html=True)
+        # Strategy Comparison and Recommendation
+        st.markdown('<h3 class="sub-header">🏆 Strategy Comparison & Recommendation</h3>', unsafe_allow_html=True)
         
-        if result.get('candidates') and len(result['candidates']) > 0:
-            # Get the first estimate for cost breakdown
-            _, first_estimate = result['candidates'][0]
-            
-            if first_estimate and hasattr(first_estimate, 'bom') and first_estimate.bom:
-                bom_data = []
-                for item in first_estimate.bom:
-                    bom_data.append({
-                        'Service': item.service,
-                        'Cost': item.cost
-                    })
-                
-                df_bom = pd.DataFrame(bom_data)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    # Pie chart
-                    fig_pie = px.pie(
-                        df_bom, 
-                        values='Cost', 
-                        names='Service',
-                        title="Cost Distribution by Service",
-                        color_discrete_sequence=px.colors.qualitative.Set3
-                    )
-                    fig_pie.update_layout(height=400)
-                    st.plotly_chart(fig_pie, use_container_width=True)
-                
-                with col2:
-                    # Bar chart
-                    fig_bar = px.bar(
-                        df_bom,
-                        x='Service',
-                        y='Cost',
-                        title="Cost by Service",
-                        color='Service',
-                        color_discrete_sequence=px.colors.qualitative.Set3
-                    )
-                    fig_bar.update_layout(height=400)
-                    st.plotly_chart(fig_bar, use_container_width=True)
-        
-        # Display LLM insights from all agents
-        st.markdown('<h3 class="sub-header">🤖 AI-Generated Insights</h3>', unsafe_allow_html=True)
-        
-        if result.get('candidates') and len(result['candidates']) > 0:
-            first_estimate = result['candidates'][0][1]
-            
-            # Display Cost Engine LLM Insights
-            if hasattr(first_estimate, 'metadata') and first_estimate.metadata:
-                metadata = first_estimate.metadata
-                
-                if 'llm_insights' in metadata and metadata['llm_insights']:
-                    st.markdown("**💰 Cost Engine AI Insights:**")
-                    llm_insights = metadata['llm_insights']
+        strategy_agent = get_strategy_comparison_agent()
+        if strategy_agent and result.get('spec_obj'):
+            try:
+                with st.spinner("🤖 Analyzing strategies and generating recommendations..."):
+                    # Get all the data needed for comparison
+                    candidates = result.get('candidates', [])
+                    optimizations = result.get('optimized', [])
+                    risks = result.get('risks', {})
                     
+                    # Get cost patterns from optimizations if available
+                    cost_patterns = {}
+                    if optimizations:
+                        for opt in optimizations:
+                            if opt and hasattr(opt, 'metadata') and opt.metadata:
+                                if 'cost_patterns' in opt.metadata:
+                                    cost_patterns.update(opt.metadata['cost_patterns'])
+                    
+                    # Generate comprehensive strategy comparison
+                    comparison_result = strategy_agent.compare_strategies(
+                        spec=result['spec_obj'],
+                        candidates=candidates,
+                        optimizations=optimizations,
+                        risks=risks,
+                        cost_patterns=cost_patterns
+                    )
+                    
+                    # Display the winner
+                    if isinstance(comparison_result, dict):
+                        winner_id = comparison_result.get('winner_blueprint_id', 'N/A')
+                        winner_reason = comparison_result.get('winner_reason', 'N/A')
+                        comparison_matrix = comparison_result.get('comparison_matrix', {})
+                        ranking = comparison_result.get('ranking', [])
+                        cost_analysis = comparison_result.get('cost_analysis', {})
+                        performance_analysis = comparison_result.get('performance_analysis', {})
+                        risk_analysis = comparison_result.get('risk_analysis', {})
+                        strategic_recommendations = comparison_result.get('strategic_recommendations', [])
+                        implementation_roadmap = comparison_result.get('implementation_roadmap', {})
+                    else:
+                        winner_id = comparison_result.winner_blueprint_id
+                        winner_reason = comparison_result.winner_reason
+                        comparison_matrix = comparison_result.comparison_matrix
+                        ranking = comparison_result.ranking
+                        cost_analysis = comparison_result.cost_analysis
+                        performance_analysis = comparison_result.performance_analysis
+                        risk_analysis = comparison_result.risk_analysis
+                        strategic_recommendations = comparison_result.strategic_recommendations
+                        implementation_roadmap = comparison_result.implementation_roadmap
+                    
+                    st.success(f"🏆 **Recommended Strategy: {winner_id.upper()}**")
+                    st.info(f"**Reason:** {winner_reason}")
+                    
+                    # Display comparison matrix
+                    st.markdown("#### 📊 Strategy Comparison Matrix")
+                    
+                    # Create comparison table
+                    comparison_data = []
+                    for blueprint_id, comparison in comparison_matrix.items():
+                        comparison_data.append({
+                            "Blueprint": blueprint_id.upper(),
+                            "Overall Score": f"{comparison.get('overall_score', 'N/A')}/100",
+                            "Cost Score": f"{comparison.get('cost_score', 'N/A')}/100",
+                            "Performance Score": f"{comparison.get('performance_score', 'N/A')}/100",
+                            "Risk Score": f"{comparison.get('risk_score', 'N/A')}/100",
+                            "Scalability Score": f"{comparison.get('scalability_score', 'N/A')}/100",
+                            "Implementation Score": f"{comparison.get('implementation_score', 'N/A')}/100"
+                        })
+                    
+                    import pandas as pd
+                    df_comparison = pd.DataFrame(comparison_data)
+                    st.dataframe(df_comparison, use_container_width=True)
+                    
+                    # Display ranking
+                    st.markdown("#### 🏅 Strategy Ranking")
+                    for i, blueprint_id in enumerate(ranking, 1):
+                        if i == 1:
+                            st.success(f"🥇 **{i}. {blueprint_id.upper()}** - Best Overall Strategy")
+                        elif i == 2:
+                            st.info(f"🥈 **{i}. {blueprint_id.upper()}** - Strong Alternative")
+                        else:
+                            st.warning(f"🥉 **{i}. {blueprint_id.upper()}** - Consider for specific use cases")
+                    
+                    # Display detailed analysis
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        if 'cost_breakdown_analysis' in llm_insights:
-                            breakdown = llm_insights['cost_breakdown_analysis']
-                            st.markdown("**📊 Cost Breakdown Analysis:**")
-                            st.info(f"• Compute: {breakdown.get('compute_percentage', 'N/A')}%")
-                            st.info(f"• Storage: {breakdown.get('storage_percentage', 'N/A')}%")
-                            st.info(f"• Network: {breakdown.get('network_percentage', 'N/A')}%")
-                            st.info(f"• Dominant Driver: {breakdown.get('dominant_cost_driver', 'N/A')}")
+                        st.markdown("#### 💰 Cost Analysis")
+                        st.info(f"**Cost Efficiency:** {cost_analysis.get('cost_efficiency', 'N/A')}")
+                        st.info(f"**Optimization Potential:** {cost_analysis.get('optimization_potential', 'N/A')}")
+                        st.info(f"**Long-term Trends:** {cost_analysis.get('long_term_cost_trends', 'N/A')}")
                         
-                        if 'optimization_opportunities' in llm_insights:
-                            st.markdown("**🚀 Optimization Opportunities:**")
-                            for opp in llm_insights['optimization_opportunities'][:3]:  # Show top 3
-                                st.success(f"• **{opp.get('category', 'N/A')}**: {opp.get('description', 'N/A')}")
-                                st.success(f"  - Potential Savings: {opp.get('potential_savings', 'N/A')}")
-                                st.success(f"  - Effort: {opp.get('effort_required', 'N/A')}")
+                        st.markdown("#### ⚡ Performance Analysis")
+                        st.info(f"**Scalability:** {performance_analysis.get('scalability', 'N/A')}")
+                        st.info(f"**Latency Analysis:** {performance_analysis.get('latency_analysis', 'N/A')}")
+                        st.info(f"**Resource Utilization:** {performance_analysis.get('resource_utilization', 'N/A')}")
                     
                     with col2:
-                        if 'pricing_insights' in llm_insights:
-                            st.markdown("**💡 Pricing Insights:**")
-                            for insight in llm_insights['pricing_insights'][:2]:  # Show top 2
-                                st.info(f"• **{insight.get('insight', 'N/A')}**")
-                                st.info(f"  - Impact: {insight.get('impact', 'N/A')}")
-                                st.info(f"  - Action: {insight.get('action', 'N/A')}")
+                        st.markdown("#### ⚠️ Risk Analysis")
+                        st.info(f"**Overall Risk:** {risk_analysis.get('overall_risk_assessment', 'N/A')}")
+                        st.info(f"**Compliance:** {risk_analysis.get('compliance_considerations', 'N/A')}")
                         
-                        if 'cost_forecast' in llm_insights:
-                            forecast = llm_insights['cost_forecast']
-                            st.markdown("**📈 Cost Forecast:**")
-                            st.warning(f"• Trend: {forecast.get('trend', 'N/A')}")
-                            if 'factors' in forecast:
-                                for factor in forecast['factors'][:2]:
-                                    st.warning(f"• Factor: {factor}")
-                            if 'recommendations' in forecast:
-                                for rec in forecast['recommendations'][:2]:
-                                    st.warning(f"• Recommendation: {rec}")
-                
-                # Display LLM cost optimization details
-                if 'llm_cost_optimization' in metadata and metadata['llm_cost_optimization']:
-                    st.success(f"**🎯 LLM Cost Optimization Applied:** {metadata['llm_cost_optimization']}")
-                
-                if 'llm_cost_forecast' in metadata and metadata['llm_cost_forecast']:
-                    st.warning(f"**📊 LLM Cost Forecast Applied:** {metadata['llm_cost_forecast']}")
-                
-                # Display cost analysis metadata
-                if 'cost_breakdown' in metadata:
-                    st.markdown("**📊 Detailed Cost Breakdown:**")
-                    breakdown = metadata['cost_breakdown']
+                        st.markdown("#### 🎯 Strategic Recommendations")
+                        for i, rec in enumerate(strategic_recommendations, 1):
+                            st.success(f"**{i}.** {rec}")
+                    
+                    # Display implementation roadmap
+                    st.markdown("#### 🗺️ Implementation Roadmap")
                     
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Compute", f"${breakdown.get('compute', 0):,.2f}")
+                        st.info(f"**Phase 1 (0-30 days):** {implementation_roadmap.get('phase_1', 'N/A')}")
                     with col2:
-                        st.metric("Storage", f"${breakdown.get('storage', 0):,.2f}")
+                        st.info(f"**Phase 2 (1-3 months):** {implementation_roadmap.get('phase_2', 'N/A')}")
                     with col3:
-                        st.metric("Network", f"${breakdown.get('network', 0):,.2f}")
-        
-        # Display Optimization Results with LLM insights
-        if result.get('optimized') and len(result['optimized']) > 0:
-            st.markdown("**🚀 LLM-Powered Optimization Results:**")
-            for i, opt_result in enumerate(result['optimized'][:3]):  # Show top 3
-                st.markdown(f"**Optimization {i+1}:**")
-                
-                if hasattr(opt_result, 'metadata') and opt_result.metadata:
-                    metadata = opt_result.metadata
+                        st.info(f"**Phase 3 (3-12 months):** {implementation_roadmap.get('phase_3', 'N/A')}")
                     
-                    # Show LLM recommendations
-                    if 'llm_recommendations' in metadata and metadata['llm_recommendations']:
-                        st.markdown("**🤖 LLM Recommendations:**")
-                        for rec in metadata['llm_recommendations'][:3]:
-                            if isinstance(rec, dict):
-                                st.success(f"• **{rec.get('strategy', 'N/A')}**: {rec.get('description', 'N/A')}")
-                                st.success(f"  - Savings: {rec.get('savings_potential', 'N/A')}")
-                                st.success(f"  - Effort: {rec.get('implementation_effort', 'N/A')}")
-                            else:
-                                st.success(f"• {rec}")
+                    st.markdown("**Key Milestones:**")
+                    milestones = implementation_roadmap.get('key_milestones', [])
+                    for milestone in milestones:
+                        st.info(f"• {milestone}")
                     
-                    # Show cost patterns
-                    if 'cost_patterns' in metadata:
-                        st.markdown("**📊 Cost Patterns:**")
-                        patterns = metadata['cost_patterns']
-                        st.json(patterns)
-                
-                st.markdown("---")
+                    st.info(f"**Resource Requirements:** {implementation_roadmap.get('resource_requirements', 'N/A')}")
+                    
+            except Exception as e:
+                st.error(f"❌ Strategy comparison failed: {e}")
+                st.info("💡 This might be due to missing API keys or configuration.")
+        else:
+            st.warning("Strategy comparison agent not available")
+            if not strategy_agent:
+                st.error("❌ Strategy comparison agent failed to initialize")
+            if not result.get('spec_obj'):
+                st.error("❌ Project specification not available")
         
-        # Display Risk Assessment Results with LLM insights
-        if result.get('risks') and len(result['risks']) > 0:
-            st.markdown("**⚠️ LLM-Powered Risk Assessment:**")
-            risks_list = list(result['risks']) if hasattr(result['risks'], '__iter__') else [result['risks']]
-            for i, risk in enumerate(risks_list[:3]):  # Show top 3
-                if hasattr(risk, 'category'):
-                    st.markdown(f"**Risk {i+1}:**")
-                    st.warning(f"• **Category**: {risk.category}")
-                    st.warning(f"• **Severity**: {risk.severity}")
-                    st.warning(f"• **Evidence**: {risk.evidence}")
-                    st.warning(f"• **Fix**: {risk.fix}")
-                else:
-                    st.warning(f"• {risk}")
-                st.markdown("---")
+        # Advanced Cost Analytics with Forecasting
+        st.markdown('<h3 class="sub-header">📈 Advanced Cost Analytics & Forecasting</h3>', unsafe_allow_html=True)
         
-        # Advanced Visualizations
-        if include_forecasting:
-            st.markdown('<h3 class="sub-header">📈 Advanced Cost Analytics</h3>', unsafe_allow_html=True)
-            
-            viz_agent = get_viz_agent()
-            if viz_agent and 'estimate' in result and 'spec' in result:
-                try:
-                    # Generate cost trend visualization
+        # Get forecast settings from sidebar
+        forecast_months = st.session_state.get('forecast_months', 6)
+        optimization_aggressiveness = st.session_state.get('optimization_aggressiveness', 'Balanced')
+        
+        # Display forecast configuration
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.info(f"**📅 Forecast Period:** {forecast_months} months")
+        with col2:
+            st.info(f"**🎯 Optimization Strategy:** {optimization_aggressiveness}")
+        with col3:
+            if result.get('candidates') and len(result['candidates']) > 0:
+                total_monthly_cost = sum(est.monthly_cost for _, est in result['candidates'] if est)
+                projected_yearly = total_monthly_cost * 12
+                st.info(f"**💰 Projected Yearly:** ${projected_yearly:,.2f}")
+        
+        viz_agent = get_viz_agent()
+        if viz_agent and result.get('spec_obj'):
+            try:
+                # Generate cost trend visualization for the first estimate
+                if result.get('candidates') and len(result['candidates']) > 0:
+                    first_estimate = result['candidates'][0][1]
+                    
+                    # Create enhanced visualization with forecasting
+                    st.markdown("#### 🔮 Cost Trend Analysis & Forecasting")
+                    
                     viz_result = viz_agent.generate_cost_trend_visualization(
                         historical_data=None,  # Will generate synthetic data
                         forecast_data=None,    # Will generate synthetic data
-                        estimate=result['estimate'],
-                        spec=result['spec']
+                        estimate=first_estimate,
+                        spec=result['spec_obj']  # Use the actual ProjectSpec object
                     )
                     
                     # Display the visualization
                     st.plotly_chart(viz_result['figure'], use_container_width=True)
                     
-                    # Display insights
+                    # Enhanced insights with forecasting context
                     col1, col2 = st.columns(2)
                     
                     with col1:
                         st.markdown("**🔍 Key Insights:**")
                         for insight in viz_result.get('insights', []):
                             st.info(insight)
+                        
+                        # Add forecast-specific insights
+                        if forecast_months > 6:
+                            st.success(f"**📈 Long-term Trend:** {forecast_months}-month forecast shows cost evolution patterns")
+                        if optimization_aggressiveness == 'Aggressive':
+                            st.warning("**⚡ Aggressive Optimization:** Higher savings potential but increased implementation complexity")
                     
                     with col2:
                         st.markdown("**💡 Recommendations:**")
                         for rec in viz_result.get('recommendations', []):
                             st.success(rec)
-                            
-                except Exception as e:
-                    st.warning(f"Visualization generation failed: {e}")
-        
-        # LLM-Powered Insights and Visualizations
-        st.markdown('<h3 class="sub-header">🤖 AI-Generated Insights</h3>', unsafe_allow_html=True)
-        
-        # Get visualization agent
-        viz_agent = get_viz_agent()
-        if viz_agent:
-            try:
-                # Generate cost trend visualization
-                spec = result.get('spec', {})
-                first_estimate = result['candidates'][0][1] if result.get('candidates') else None
-                
-                if first_estimate:
-                    viz_result = viz_agent.generate_cost_trend_visualization(
-                        historical_data=None,  # We don't have historical data yet
-                        forecast_data=None,     # We don't have forecast data yet
-                        estimate=first_estimate,
-                        spec=spec
-                    )
+                        
+                        # Add forecast-specific recommendations
+                        if forecast_months >= 12:
+                            st.info("**🎯 Annual Planning:** Consider reserved instances for predictable workloads")
+                        if optimization_aggressiveness == 'Conservative':
+                            st.info("**🛡️ Conservative Approach:** Lower risk, gradual optimization over time")
                     
-                    # Display the visualization if available
-                    if viz_result.get('figure'):
-                        st.plotly_chart(viz_result['figure'], use_container_width=True)
+                    # LLM-Powered Dynamic Forecasting Analysis
+                    st.markdown("#### 📊 LLM-Powered Forecasting Analysis")
                     
-                    # Display insights
-                    col1, col2 = st.columns(2)
+                    # Generate intelligent forecasting using LLM
+                    try:
+                        with st.spinner("🤖 Generating intelligent cost forecasts..."):
+                            forecast_analysis = viz_agent.generate_intelligent_forecasting(
+                                estimate=first_estimate,
+                                spec=result['spec_obj'],
+                                forecast_months=forecast_months,
+                                optimization_strategy=optimization_aggressiveness,
+                                cost_patterns=cost_patterns,
+                                risks=result.get('risks', {})
+                            )
+                        
+                        # Display dynamic forecasting results
+                        col1, col2, col3, col4 = st.columns(4)
+                        
+                        with col1:
+                            # Total projected cost over forecast period
+                            total_projected_cost = forecast_analysis.get('total_projected_cost', 0)
+                            final_month_cost = forecast_analysis.get('final_month_cost', 0)
+                            st.metric(
+                                f"Total Projected Cost ({forecast_months} months)", 
+                                f"${total_projected_cost:,.0f}", 
+                                f"Final month: ${final_month_cost:,.0f}"
+                            )
+                        
+                        with col2:
+                            # Dynamic optimization potential
+                            projected_savings = forecast_analysis.get('projected_savings', 0)
+                            savings_potential = forecast_analysis.get('savings_potential', 0)
+                            st.metric(
+                                "Potential Savings", 
+                                f"${projected_savings:,.0f}", 
+                                f"{savings_potential:.1f}% monthly"
+                            )
+                        
+                        with col3:
+                            # Dynamic risk assessment
+                            risk_score = forecast_analysis.get('risk_score', 0)
+                            risk_trend = forecast_analysis.get('risk_trend', 'stable')
+                            st.metric(
+                                "Risk Score", 
+                                f"{risk_score:.1f}/10", 
+                                f"Trend: {risk_trend}"
+                            )
+                        
+                        with col4:
+                            # Average monthly cost and growth rate
+                            average_monthly_cost = forecast_analysis.get('average_monthly_cost', 0)
+                            growth_rate = forecast_analysis.get('growth_rate', 0)
+                            st.metric(
+                                "Average Monthly Cost", 
+                                f"${average_monthly_cost:,.0f}", 
+                                f"Growth: {growth_rate:.1f}% monthly"
+                            )
+                        
+                        # Display LLM-generated insights
+                        st.markdown("#### 🔮 LLM Forecasting Insights")
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**📈 Growth Factors:**")
+                            growth_factors = forecast_analysis.get('growth_factors', [])
+                            for factor in growth_factors:
+                                st.info(f"• {factor}")
+                        
+                        with col2:
+                            st.markdown("**💰 Optimization Insights:**")
+                            optimization_insights = forecast_analysis.get('optimization_insights', [])
+                            for insight in optimization_insights:
+                                st.success(f"• {insight}")
+                        
+                        # Display trend analysis
+                        if forecast_analysis.get('trend_analysis'):
+                            st.markdown("#### 📊 Trend Analysis")
+                            trend_data = forecast_analysis['trend_analysis']
+                            if trend_data and 'costs' in trend_data:
+                                # Create dynamic trend chart
+                                import plotly.graph_objects as go
+                                
+                                fig = go.Figure()
+                                fig.add_trace(go.Scatter(
+                                    x=list(range(1, forecast_months + 1)),
+                                    y=trend_data['costs'],
+                                    mode='lines+markers',
+                                    name='Projected Costs',
+                                    line=dict(color='#1f77b4', width=3)
+                                ))
+                                
+                                if 'optimized_costs' in trend_data:
+                                    fig.add_trace(go.Scatter(
+                                        x=list(range(1, forecast_months + 1)),
+                                        y=trend_data['optimized_costs'],
+                                        mode='lines+markers',
+                                        name='Optimized Costs',
+                                        line=dict(color='#2ca02c', width=3, dash='dash')
+                                    ))
+                                
+                                fig.update_layout(
+                                    title=f"LLM-Powered Cost Forecasting ({forecast_months} months)",
+                                    xaxis_title="Months",
+                                    yaxis_title="Monthly Cost ($)",
+                                    height=400,
+                                    template="plotly_white"
+                                )
+                                
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.warning("❌ LLM forecasting failed: Missing trend data")
+                                st.error("The LLM did not provide complete trend analysis. Please try regenerating the forecast.")
                     
-                    with col1:
-                        st.markdown("**🔍 Key Insights:**")
-                        for insight in viz_result.get('insights', []):
-                            st.info(insight)
-                    
-                    with col2:
-                        st.markdown("**💡 Recommendations:**")
-                        for rec in viz_result.get('recommendations', []):
-                            st.success(rec)
+                    except Exception as e:
+                        st.error(f"❌ LLM forecasting failed: {e}")
+                        st.error("No fallback available. The system requires LLM-powered forecasting to work properly.")
+                        st.info("💡 Please check your API configuration and try again.")
+                        
                 else:
                     st.info("No estimates available for visualization")
                     
             except Exception as e:
                 st.warning(f"Visualization generation failed: {e}")
+                st.error(f"Error details: {str(e)}")
         else:
             st.warning("Visualization agent not available")
+            st.info("💡 This might be due to missing API keys or configuration.")
         
-        # Cost Optimization Results
-        st.markdown('<h3 class="sub-header">⚡ Cost Optimization</h3>', unsafe_allow_html=True)
+        # Summary and Next Steps
+        st.markdown('<h3 class="sub-header">📋 Summary and Next Steps</h3>', unsafe_allow_html=True)
         
-        if result.get('optimized') and len(result['optimized']) > 0:
-            for i, opt in enumerate(result['optimized']):
-                if opt:
-                    st.markdown(f"**Optimization {i+1}:**")
-                    
-                    # Handle both dict and object access
-                    if hasattr(opt, 'monthly_cost'):
-                        monthly_cost = opt.monthly_cost
-                    elif hasattr(opt, 'get'):
-                        monthly_cost = opt.get('monthly_cost', 'N/A')
-                    else:
-                        monthly_cost = 'N/A'
-                    
-                    st.info(f"**Monthly Cost:** ${monthly_cost:,.2f}" if isinstance(monthly_cost, (int, float)) else f"**Monthly Cost:** {monthly_cost}")
-                    
-                    # Display optimization metadata if available
-                    if hasattr(opt, 'metadata') and opt.metadata:
-                        for key, value in opt.metadata.items():
-                            st.info(f"**{key.title()}:** {value}")
-                    
-                    st.markdown("---")
-        else:
-            st.info("No optimizations generated. This might be due to missing API keys or configuration.")
+        col1, col2 = st.columns(2)
         
-        # Risk Assessment
-        st.markdown('<h3 class="sub-header">⚠️ Risk Assessment</h3>', unsafe_allow_html=True)
+        with col1:
+            st.markdown("**🎯 Key Findings:**")
+            if result.get('candidates') and len(result['candidates']) > 0:
+                st.success(f"• Generated {len(result['candidates'])} architecture blueprints")
+                st.success(f"• Cost estimates range from ${min(est.monthly_cost for _, est in result['candidates'] if est):,.2f} to ${max(est.monthly_cost for _, est in result['candidates'] if est):,.2f}")
+                st.success(f"• Identified {len(result.get('risks', {}))} risk areas")
+                st.success(f"• Generated {len(result.get('optimized', []))} optimization strategies")
         
-        if result.get('risks') and len(result['risks']) > 0:
-            for blueprint_id, risk_findings in result['risks'].items():
-                if risk_findings:
-                    st.markdown(f"**Blueprint: {blueprint_id}**")
-                    
-                    for finding in risk_findings:
-                        # Handle both dict and object access
-                        if hasattr(finding, 'severity'):
-                            severity = finding.severity
-                        elif hasattr(finding, 'get'):
-                            severity = finding.get('severity', 'unknown')
-                        else:
-                            severity = 'unknown'
-                            
-                        if hasattr(finding, 'category'):
-                            category = finding.category
-                        elif hasattr(finding, 'get'):
-                            category = finding.get('category', 'unknown')
-                        else:
-                            category = 'unknown'
-                            
-                        if hasattr(finding, 'evidence'):
-                            evidence = finding.evidence
-                        elif hasattr(finding, 'get'):
-                            evidence = finding.get('evidence', 'No evidence')
-                        else:
-                            evidence = 'No evidence'
-                        
-                        if severity == 'critical':
-                            st.error(f"🚨 **{category.upper()}** - {evidence}")
-                        elif severity == 'high':
-                            st.warning(f"⚠️ **{category.upper()}** - {evidence}")
-                        elif severity == 'medium':
-                            st.info(f"ℹ️ **{category.upper()}** - {evidence}")
-                        else:
-                            st.success(f"✅ **{category.upper()}** - {evidence}")
-                        
-                        # Display fix if available
-                        if hasattr(finding, 'fix'):
-                            fix = finding.fix
-                        elif hasattr(finding, 'get'):
-                            fix = finding.get('fix')
-                        else:
-                            fix = None
-                            
-                        if fix:
-                            st.markdown(f"**Fix:** {fix}")
-                    
-                    st.markdown("---")
-        else:
-            st.info("No risk assessments generated. This might be due to missing API keys or configuration.")
+        with col2:
+            st.markdown("**🚀 Next Steps:**")
+            st.info("• Review and compare the proposed blueprints")
+            st.info("• Analyze cost optimization opportunities")
+            st.info("• Assess and mitigate identified risks")
+            st.info("• Implement the chosen architecture")
         
-        # Cost Forecasting
-        if include_forecasting and 'forecast' in result:
-            st.markdown('<h3 class="sub-header">🔮 Cost Forecasting</h3>', unsafe_allow_html=True)
-            
-            forecast = result['forecast']
-            if forecast:
-                # Create forecast chart
-                months = list(range(1, forecast_months + 1))
-                costs = [forecast.get('monthly_costs', {}).get(str(m), 0) for m in months]
-                
-                df_forecast = pd.DataFrame({
-                    'Month': [f"Month {m}" for m in months],
-                    'Cost': costs
-                })
-                
-                fig_forecast = px.line(
-                    df_forecast,
-                    x='Month',
-                    y='Cost',
-                    title=f"{forecast_months}-Month Cost Forecast",
-                    markers=True
-                )
-                fig_forecast.update_layout(height=400)
-                st.plotly_chart(fig_forecast, use_container_width=True)
-                
-                # Forecast insights
-                st.markdown("**📊 Forecast Insights:**")
-                st.info(f"**Trend:** {forecast.get('trend', 'Stable')}")
-                st.info(f"**Confidence:** {forecast.get('confidence', 'Medium')}")
-                st.info(f"**Key Factors:** {', '.join(forecast.get('factors', []))}")
+        st.markdown("---")
+        st.markdown("**💡 Pro Tip:** Use the 'Clear Results' button above to start a new analysis with different requirements.")
+        
+    else:
+        st.info("No planning results available. Please generate a plan first.")
 
 # Footer
 st.markdown("---")
