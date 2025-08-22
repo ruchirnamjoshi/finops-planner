@@ -286,7 +286,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 **🚀 Transform your cloud cost management with AI-powered intelligence**
 
-*Built with ❤️ by the FinOps Planner Team*
+*Built with ❤️ by Ruchir Namjoshi*
 
 [![GitHub stars](https://img.shields.io/github/stars/ruchirnamjoshi/finops-planner?style=social)](https://github.com/ruchirnamjoshi/finops-planner)
 [![GitHub forks](https://img.shields.io/github/forks/ruchirnamjoshi/finops-planner?style=social)](https://github.com/ruchirnamjoshi/finops-planner)
