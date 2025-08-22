@@ -1,0 +1,24 @@
+id: gcp_gpu_training
+cloud: gcp
+region: us-central1
+services:
+  - service: compute
+    sku: n1_standard_a100
+    qty_expr: "1"
+    unit: instance_month
+  - service: storage
+    sku: standard_storage
+    qty_expr: "5000"
+    unit: gb_month
+  - service: storage
+    sku: nearline_storage
+    qty_expr: "20000"
+    unit: gb_month
+  - service: network
+    sku: egress
+    qty_expr: "200"
+    unit: gb
+assumptions:
+  workload: batch
+  latency_ms: 0
+  notes: "GCP N1 Standard A100 GPU training node with Standard + Nearline Storage and daily egress."

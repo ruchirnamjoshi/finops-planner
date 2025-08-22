@@ -1,0 +1,24 @@
+id: aws_gpu_training
+cloud: aws
+region: us-east-1
+services:
+  - service: ec2
+    sku: ec2_g5_2xlarge
+    qty_expr: "1"
+    unit: instance_month
+  - service: s3
+    sku: s3_standard_storage
+    qty_expr: "5000"
+    unit: gb_month
+  - service: s3
+    sku: s3_ia_storage
+    qty_expr: "20000"
+    unit: gb_month
+  - service: network
+    sku: egress
+    qty_expr: "200"
+    unit: gb
+assumptions:
+  workload: batch
+  latency_ms: 0
+  notes: "AWS G5 GPU training node with S3 Standard + IA and daily egress."

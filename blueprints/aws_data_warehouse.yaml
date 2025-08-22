@@ -1,0 +1,32 @@
+id: aws_data_warehouse
+cloud: aws
+region: us-east-1
+services:
+  - service: redshift
+    sku: redshift_dc2_large
+    qty_expr: "2"
+    unit: instance_month
+  - service: s3
+    sku: s3_standard_storage
+    qty_expr: "5000"
+    unit: gb_month
+  - service: s3
+    sku: s3_ia_storage
+    qty_expr: "10000"
+    unit: gb_month
+  - service: s3
+    sku: s3_glacier
+    qty_expr: "20000"
+    unit: gb_month
+  - service: emr
+    sku: emr_master_node
+    qty_expr: "1"
+    unit: instance_month
+  - service: network
+    sku: egress
+    qty_expr: "1000"
+    unit: gb
+assumptions:
+  workload: data_warehouse
+  latency_ms: 300
+  notes: "Data warehouse with Redshift, S3 storage tiers, and EMR for processing."

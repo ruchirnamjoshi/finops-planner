@@ -1,0 +1,25 @@
+# settings.yaml
+# Global configuration for FinOps Planner
+
+data:
+  db_path: data/finops.duckdb
+  history_csv: data/history.csv
+  price_snapshot: data/price_snapshot.csv
+
+blueprints:
+  - blueprints/aws_gpu_training.yaml
+  - blueprints/aws_web_app.yaml
+  - blueprints/aws_data_warehouse.yaml
+  - blueprints/azure_gpu_training.yaml
+  - blueprints/gcp_gpu_training.yaml
+
+forecast:
+  horizon_days: 30   # how many days ahead to forecast
+  model: sarima      # default forecast model (options: sarima, lstm, prophet)
+
+optimization:
+  objectives:
+    - minimize_cost
+  constraints:
+    max_latency_ms: 200
+    max_regions: 3

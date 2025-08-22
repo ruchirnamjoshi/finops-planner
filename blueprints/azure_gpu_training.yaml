@@ -1,0 +1,24 @@
+id: azure_gpu_training
+cloud: azure
+region: eastus
+services:
+  - service: compute
+    sku: nc_a100_v4
+    qty_expr: "1"
+    unit: instance_month
+  - service: storage
+    sku: blob_storage_hot
+    qty_expr: "5000"
+    unit: gb_month
+  - service: storage
+    sku: blob_storage_cool
+    qty_expr: "20000"
+    unit: gb_month
+  - service: network
+    sku: egress
+    qty_expr: "200"
+    unit: gb
+assumptions:
+  workload: batch
+  latency_ms: 0
+  notes: "Azure NC A100 v4 GPU training node with Blob Storage Hot + Cool and daily egress."

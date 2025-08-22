@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Data & artifacts
+data/raw/
+data/focus/
+data/pricing/*.parquet
+*.tmp
+*.log
+
+# Gradio cache
+gradio_cached_examples/

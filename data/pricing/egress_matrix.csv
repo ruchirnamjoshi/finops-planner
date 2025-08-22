@@ -1,0 +1,5 @@
+cloud,src_region,dst_region,price_per_gb
+gcp,us-central1,us-central1,0.01
+gcp,us-central1,us-east1,0.12
+aws,us-east-1,us-west-2,0.09
+azure,eastus,westus2,0.087

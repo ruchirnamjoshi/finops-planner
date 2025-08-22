@@ -1,9 +1,31 @@
-pydantic>=2.7
+# === Core runtime ===
+numpy<2
 pandas>=2.2
-numpy>=1.26
-duckdb>=1.0
+pydantic>=2.7
 pyyaml>=6.0
-matplotlib>=3.8
-prophet>=1.1 ; sys_platform != 'win32'
+duckdb>=1.0
+
+# === LLM client ===
+openai>=1.33.0  # used by Planner (LLM) via responses API
+
+# === UI & viz ===
+streamlit>=1.28.0
+plotly>=5.22
+matplotlib>=3.8,<3.9
+Pillow>=10.0
+
+# === Time-series & stats ===
 statsmodels>=0.14
-gradio>=4.44
+pmdarima>=2.0
+scikit-learn>=1.4
+
+# === Nice-to-have utilities ===
+python-dotenv>=1.0       # load env vars from .env locally
+tenacity>=8.2            # retries for API calls
+
+# === Additional dependencies for intelligent agents ===
+types-simpleNamespace    # for SimpleNamespace type hints
+
+# === Optional ML frameworks ===
+# prophet>=1.1 ; sys_platform != "win32"  # optional; can be finicky to build
+# tensorflow~=2.16                        # optional; for advanced ML models

@@ -1,0 +1,28 @@
+id: aws_web_app
+cloud: aws
+region: us-east-1
+services:
+  - service: ec2
+    sku: ec2_c6i_2xlarge
+    qty_expr: "2"
+    unit: instance_month
+  - service: rds
+    sku: rds_mysql_db_t3_micro
+    qty_expr: "1"
+    unit: instance_month
+  - service: s3
+    sku: s3_standard_storage
+    qty_expr: "100"
+    unit: gb_month
+  - service: cloudfront
+    sku: cloudfront_data_transfer
+    qty_expr: "500"
+    unit: gb
+  - service: network
+    sku: egress
+    qty_expr: "800"
+    unit: gb
+assumptions:
+  workload: web_application
+  latency_ms: 50
+  notes: "High-traffic web application with auto-scaling, CDN, and database."

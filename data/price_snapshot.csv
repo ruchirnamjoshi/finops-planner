@@ -1,0 +1,13 @@
+cloud,region,service,sku,unit,unit_price
+aws,us-east-1,ec2,ec2_g5_2xlarge,instance_month,2.50
+aws,us-east-1,s3,s3_standard_storage,gb_month,0.023
+aws,us-east-1,s3,s3_ia_storage,gb_month,0.0125
+aws,us-east-1,network,egress,gb,0.09
+azure,eastus,compute,nc_a100_v4,instance_month,3.20
+azure,eastus,storage,blob_storage_hot,gb_month,0.0184
+azure,eastus,storage,blob_storage_cool,gb_month,0.01
+azure,eastus,network,egress,gb,0.087
+gcp,us-central1,compute,n1_standard_a100,instance_month,2.95
+gcp,us-central1,storage,standard_storage,gb_month,0.020
+gcp,us-central1,storage,nearline_storage,gb_month,0.010
+gcp,us-central1,network,egress,gb,0.12
