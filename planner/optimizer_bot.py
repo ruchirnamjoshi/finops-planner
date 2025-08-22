@@ -206,7 +206,10 @@ Consider the workload type when scoring:
                 CRITICAL: Make recommendations SPECIFIC to the workload type and services used.
                 DO NOT provide generic advice - make it relevant to the actual architecture.
                 
-                IMPORTANT: Respond with ONLY valid JSON in the exact specified format."""),
+                IMPORTANT: 
+- Respond with ONLY valid JSON in the exact specified format
+- savings_potential must be a NUMBER (e.g., 25 for 25% savings)
+- Do not use percentage symbols or ranges in numeric fields"""),
                 
                 ("human", """Generate optimization recommendations for this cloud infrastructure:
 
@@ -233,7 +236,7 @@ Provide 3-5 specific recommendations in this JSON format:
     {{
         "strategy": "strategy_name",
         "description": "detailed description of the optimization",
-        "savings_potential": "estimated savings (e.g., 20-30%)",
+        "savings_potential": "estimated savings percentage (e.g., 25)",
         "implementation_effort": "effort level (low|medium|high)",
         "workload_relevance": "why this applies to this workload type"
     }}

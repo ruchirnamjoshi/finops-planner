@@ -673,6 +673,9 @@ CRITICAL REQUIREMENTS:
 2. Generate month-by-month cost projections for exactly {forecast_months} months
 3. Return ONLY valid JSON - no explanations, no markdown, no extra text
 4. All costs should be realistic based on the current monthly cost of ${monthly_cost:,.2f}
+5. Monthly costs should show realistic variation (not identical values)
+6. Consider seasonal patterns, growth trends, and optimization effects
+7. Each month should have a different cost value that makes business sense
 
 Provide a comprehensive forecast analysis in this exact JSON format:
 {{
@@ -698,6 +701,12 @@ Provide a comprehensive forecast analysis in this exact JSON format:
         "costs": [<month1_cost>, <month2_cost>, ... <month{forecast_months}_cost>],
         "optimized_costs": [<month1_optimized>, <month2_optimized>, ... <month{forecast_months}_optimized>]
     }}
+    
+COST VARIATION REQUIREMENTS:
+- Each month must have a different cost value
+- Show realistic growth patterns (e.g., 5-15% monthly variation)
+- Consider optimization effects over time
+- Base costs on actual project characteristics and workload patterns
 }}
 
 IMPORTANT: 
@@ -865,12 +874,14 @@ Generate realistic data for exactly {forecast_months} months in this exact JSON 
 REQUIREMENTS:
 - Generate exactly {forecast_months} data points for each array
 - Monthly costs should start near {monthly_cost} and show realistic growth/fluctuation over {forecast_months} months
+- Each month should have DIFFERENT values (not identical)
+- Show realistic monthly variation (5-20% between months)
 - GPU utilization should be between 70-95% for ML workloads, 60-85% for others
 - Storage costs should be 15-25% of monthly cost
 - Training costs should be 60-80% of monthly cost for ML workloads
 - Inference costs should be 10-20% of monthly cost for ML workloads
 - Traffic QPS should show realistic scaling patterns over {forecast_months} months
-- All values should be realistic and project-specific
+- All values should be realistic, project-specific, and show month-to-month variation
 
 Return ONLY the JSON object, nothing else.""")
             ])

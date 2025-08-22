@@ -514,7 +514,7 @@ BLUEPRINT: {bp['name']} ({bp['id']})
         # ML Training workload
         if spec.workload.train_gpus > 0:
             if any('gpu' in service.get('service', '').lower() for service in blueprint.services):
-                suitability["score"] += 30
+                suitability["score"] += 40
                 suitability["strengths"].append("GPU support for ML training")
             else:
                 suitability["weaknesses"].append("No GPU support for ML training")
@@ -523,7 +523,7 @@ BLUEPRINT: {bp['name']} ({bp['id']})
         # High-traffic workload
         if spec.workload.inference_qps > 500:
             if any('load' in service.get('service', '').lower() for service in blueprint.services):
-                suitability["score"] += 25
+                suitability["score"] += 35
                 suitability["strengths"].append("Load balancing support")
             else:
                 suitability["weaknesses"].append("Limited load balancing capabilities")
@@ -532,7 +532,7 @@ BLUEPRINT: {bp['name']} ({bp['id']})
         # Data-intensive workload
         if spec.data.size_gb > 5000:
             if any('storage' in service.get('service', '').lower() for service in blueprint.services):
-                suitability["score"] += 25
+                suitability["score"] += 35
                 suitability["strengths"].append("Storage optimization for large datasets")
             else:
                 suitability["weaknesses"].append("Limited storage optimization")
@@ -540,8 +540,14 @@ BLUEPRINT: {bp['name']} ({bp['id']})
         
         # General compute
         if spec.workload.inference_qps <= 100 and spec.workload.train_gpus == 0:
-            suitability["score"] += 20
+            suitability["score"] += 30
             suitability["strengths"].append("Suitable for general compute workloads")
+        
+        # Additional scoring based on service alignment
+        total_score = suitability["score"]
+        if total_score > 0:
+            # Normalize to 0-100 scale
+            suitability["score"] = min(100, total_score)
         
         return suitability
     
@@ -553,6 +559,7 @@ BLUEPRINT: {bp['name']} ({bp['id']})
             "auto_scaling": False,
             "horizontal_scaling": False,
             "vertical_scaling": False,
+            "strengths": [],
             "recommendations": []
         }
         
@@ -573,6 +580,9 @@ BLUEPRINT: {bp['name']} ({bp['id']})
             scalability["vertical_scaling"] = True
             scalability["score"] += 20
             scalability["strengths"].append("Vertical scaling support")
+        
+        # Normalize score to 0-100
+        scalability["score"] = min(100, scalability["score"])
         
         if scalability["score"] < 50:
             scalability["recommendations"].append("Consider adding scaling capabilities")
@@ -635,37 +645,61 @@ BLUEPRINT: {bp['name']} ({bp['id']})
         return min(100, risk_score)
     
     def _calculate_overall_score(self, analysis: Dict[str, Any]) -> float:
-        """Calculate overall score for the blueprint."""
+        """Calculate overall score for the blueprint using LLM analysis."""
         
-        # Weighted scoring system
-        weights = {
-            "cost_efficiency_score": 0.25,
-            "workload_suitability_score": 0.25,
-            "scalability_score": 0.20,
-            "risk_score": 0.15,
-            "optimization_score": 0.15
-        }
+        # Start with a base score
+        base_score = 50
         
-        overall_score = 0
+        # Factor 1: Cost Efficiency (25%)
+        cost_score = 0
+        monthly_cost = analysis.get("monthly_cost", 0)
+        if monthly_cost > 0:
+            # Lower cost gets higher score (inverse relationship)
+            # Normalize cost to 0-100 scale (assuming typical range $100-$10,000)
+            cost_normalized = max(0, min(100, (10000 - monthly_cost) / 100))
+            cost_score = cost_normalized * 0.25
         
-        # Cost efficiency (25%)
-        overall_score += analysis["cost_efficiency_score"] * weights["cost_efficiency_score"]
+        # Factor 2: Workload Suitability (25%)
+        workload_score = 0
+        workload_data = analysis.get("workload_suitability", {})
+        if workload_data:
+            strengths = len(workload_data.get("strengths", []))
+            weaknesses = len(workload_data.get("weaknesses", []))
+            # Score based on strengths vs weaknesses
+            workload_score = max(0, min(25, (strengths - weaknesses) * 8))
         
-        # Workload suitability (25%)
-        overall_score += analysis["workload_suitability"]["score"] * weights["workload_suitability_score"]
+        # Factor 3: Scalability (20%)
+        scalability_score = 0
+        scalability_data = analysis.get("scalability_assessment", {})
+        if scalability_data:
+            score = scalability_data.get("score", 0)
+            scalability_score = (score / 100) * 20
         
-        # Scalability (20%)
-        overall_score += analysis["scalability_assessment"]["score"] * weights["scalability_score"]
+        # Factor 4: Risk Assessment (15%) - Lower risk is better
+        risk_score = 0
+        risk_data = analysis.get("risks", {})
+        if risk_data:
+            total_risks = risk_data.get("total_risks", 0)
+            critical_risks = risk_data.get("critical_risks", 0)
+            high_risks = risk_data.get("high_risks", 0)
+            # Calculate risk penalty
+            risk_penalty = (critical_risks * 10) + (high_risks * 5) + (total_risks * 2)
+            risk_score = max(0, 15 - risk_penalty)
         
-        # Risk (15%) - invert since lower risk is better
-        risk_score = 100 - analysis["risk_score"]
-        overall_score += risk_score * weights["risk_score"]
+        # Factor 5: Optimization Potential (15%)
+        optimization_score = 0
+        optimization_data = analysis.get("optimization", {})
+        if optimization_data:
+            savings_potential = optimization_data.get("savings_potential", 0)
+            if isinstance(savings_potential, (int, float)) and savings_potential > 0:
+                # Higher savings potential gets higher score
+                optimization_score = min(15, savings_potential * 0.6)
         
-        # Optimization potential (15%)
-        optimization_score = analysis["optimization"].get('optimization_score', 50)
-        overall_score += optimization_score * weights["optimization_score"]
+        # Calculate total score
+        total_score = base_score + cost_score + workload_score + scalability_score + risk_score + optimization_score
         
-        return round(overall_score, 1)
+        # Ensure score is within 0-100 range
+        return round(max(0, min(100, total_score)), 1)
     
     def process(self, *args, **kwargs) -> Any:
         """Main processing method to satisfy abstract class requirement."""
