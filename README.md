@@ -282,25 +282,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - **Documentation**: Include docstrings for all functions
 - **Testing**: Add tests for new features
 
-## 📄 **License**
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 **Acknowledgments**
-
-- **OpenAI** for providing the GPT-4o-mini model
-- **LangChain** for the excellent LLM orchestration framework
-- **Streamlit** for the powerful web application framework
-- **Open Source Community** for inspiration and contributions
-
-## 📞 **Support & Contact**
-
-- **GitHub Issues**: [Report bugs or request features](https://github.com/ruchirnamjoshi/finops-planner/issues)
-- **Discussions**: [Join the community](https://github.com/ruchirnamjoshi/finops-planner/discussions)
-- **Email**: [Contact the team](mailto:support@finops-planner.com)
-
----
-
 <div align="center">
 
 **🚀 Transform your cloud cost management with AI-powered intelligence**
